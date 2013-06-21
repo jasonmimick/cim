@@ -1003,7 +1003,7 @@ action="$1"
 connection="$2"
 namespace="$3"
 file="$4"
-
+echo "file=$file"
 if [ $action = 'help' ]; then
     usage
     exit

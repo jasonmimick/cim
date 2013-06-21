@@ -947,14 +947,17 @@ namespace="`echo $namespace | tr '[:lower:]' '[:upper:']`"
 system="\\\$system"
 /usr/bin/expect <<End-Of-Expect
 spawn $csession $instance -U $namespace
-expect "Username: "
-send "$username\r"
-expect "Password: "
-send "$password\r"
-expect "$namespace>"
-send "do $system.OBJ.Load(\"$tmp\",\"ck\")\r"
-expect "$namespace>"
-send "halt\r"
+expect "Username: " {
+    send "$username\r"
+}
+expect "Password: " {
+    send "$password\r"
+}
+expect "$namespace>" {
+    send "do $system.OBJ.Load(\"$tmp\",\"ck\")\r"
+    expect "$namespace>"
+    send "halt\r"
+}
 End-Of-Expect
 
 rm $tmp
@@ -1011,16 +1014,16 @@ if [ $action = 'bootstrap' ]; then
     credentials=${connection%@*}
     username=${credentials%:*}
     password=${credentials#*:}
-    echo "credentials=$credentials username=$username password=$password"
+    #echo "credentials=$credentials username=$username password=$password"
     bootstrap $username $password $namespace $instance $cache_home
     exit
 fi
 if [ $action = 'get' ]; then
-  curl -X GET http://$connection/csp/samples/User.NoStudio.cls?$file
+  curl -X GET http://$connection/csp/$namespace/cim.cim.cls?$file
   exit
 fi
 if [ $action = 'put' ]; then
- curl -v -X POST --data-binary @$file http://$connection/csp/samples/User.NoStudio.cls --header "Content-Type:application/x-cache-cls; charset=utf-8"
+ curl -v -X POST --data-binary @$file http://$connection/csp/$namespace/cim.cim.cls --header "Content-Type:application/x-cache-cls; charset=utf-8"
 
 fi
 

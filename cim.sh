@@ -384,7 +384,7 @@ The name of the aritfact in Cache is determined by the thing itself
 	<!DOCTYPE html>
 		<head>
 			<title>cim</title>
-			<style>body { font-family: courier; font-size : 12 }</style>
+			<style>body { font-family: courier; font-size : 24 }</style>
 		</head>
 		<body>
 			<h2>cim (#(..#CIMVERSION)#)</h2>
@@ -509,6 +509,7 @@ The name of the aritfact in Cache is determined by the thing itself
 		set firstWord = $zconvert($zconvert($piece(line," ",1),"L"),"S")		// lower then Sententce case
 		set:firstWord="Classmethod" firstWord="ClassMethod"
 		set:firstWord="Xdata" firstWord="XData"
+        write ">>>>>>firstWord=",firstWord
 		
 		if ( $listfind(tokens,firstWord) = 0 ) {
 			continue		// throw exception here???
@@ -531,7 +532,7 @@ The name of the aritfact in Cache is determined by the thing itself
 				if ( type="ClassMethods" ) set type="Methods"
 				if ( type="Querys" ) set type="Queries"
 				set thing.SequenceNumber=$i(sequenceNumber)
-				write type,!
+				write "------>",type,!
 				set collection=$property(classDef,type)
 				do $method(collection,"Insert",thing)	
 			}
@@ -803,7 +804,18 @@ The name of the aritfact in Cache is determined by the thing itself
 <FormalSpec>i,*xdata</FormalSpec>
 <Implementation><![CDATA[
 	set xdata=##class(%Dictionary.XDataDefinition).%New()
-	set name="FOOOOO"
+    set line=^||lines(i)
+    do ..parseParams(line,.p)
+	do ..setParams(xdata,.p)
+    set name=$piece(line," ",2)
+    set done=0
+    while ( 'done ) {
+        set cl=^||lines($i(i))
+        if ( cl["{" ) { set cl=$piece(cl,"{",2,$length(cl,"{")) }
+        if ( cl]"{" ) { set cl=$piece(cl,"}",1),done=1 }
+        do xdata.Data.WriteLine(cl)
+    }
+    do xdata.Data.OutputToDevice()
 	set xdata.Name=name
 ]]></Implementation>
 </Method>

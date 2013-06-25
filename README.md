@@ -9,8 +9,7 @@ Getting Started
 ---------------
 
     user@server>git clone https://github.com/jasonmimick/cim
-    user@server>cd cim
-    user@server>./cim.sh help
+    user@server>cim/cim.sh help
 
 Requires: expect & curl 
 

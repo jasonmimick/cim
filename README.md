@@ -1,4 +1,4 @@
-cim
+Have you seen cim?
 ===
 
 Edit InterSystems Caché code artifacts in your favorite text editor.

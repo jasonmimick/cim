@@ -12,8 +12,9 @@ Getting Started
     user@server>cd cim
     user@server>./cim.sh help
 
-Requires: expect for bootstrapping.
+Requires: expect & curl 
 
+    sudo apt-get install curl
     sudo apt-get install expect
 
 Jason.Mimick@InterSystems.com

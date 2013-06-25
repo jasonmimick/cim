@@ -563,7 +563,7 @@ The name of the aritfact in Cache is determined by the thing itself
 		} else {
 			if ( $data(classDef) ) {
 				set type=firstWord_"s"
-				if ( type="Indexs" ) set type="Indice"
+				if ( type="Indexs" ) set type="Indices"
 				if ( type="Propertys" ) set type="Properties"
 				if ( type="ClassMethods" ) set type="Methods"
 				if ( type="Querys" ) set type="Queries"
@@ -639,9 +639,13 @@ The name of the aritfact in Cache is determined by the thing itself
 	set line=^||lines(i)
 	set className = $piece(line," ",2)
 	set supers = $piece(line," ",4)
+    if ( supers["(" ) { // more than one
+        set supers=$piece($piece(line,")",1),"(",2)
+    }
 	set cdef=##class(%Dictionary.ClassDefinition).%New()
 	set cdef.Name=className
 	set cdef.Super=supers
+    set cdef.ProcedureBlock = 1
 	do ..parseParams(line,.p)
 	do ..setParams(cdef,.p)
 	// any description?
@@ -663,6 +667,7 @@ The name of the aritfact in Cache is determined by the thing itself
 <FormalSpec>i,*pdef</FormalSpec>
 <Implementation><![CDATA[
 	set line=^||lines(i)
+    set line=$zstrip(line,"<>W")
 	set pdef=##class(%Dictionary.ParameterDefinition).%New()
 	set pdef.Name=$piece(line," ",2)
 	set pdef.Type=$piece(line," ",4)
@@ -724,7 +729,16 @@ The name of the aritfact in Cache is determined by the thing itself
     set line=$zstrip(^||lines(i),"<>W")
 	set pdef=##class(%Dictionary.PropertyDefinition).%New()
 	set pdef.Name=$piece(line," ",2)
-	set pdef.Type=$piece($piece(line," ",4),";",1)
+    set ll=$zconvert(line,"l")
+    if ( (ll[" as ")&&(ll[" of ") ) {        // collection
+        set collectionType = $piece($piece(ll," as ",2)," of ",1)
+        write "collectionType=",collectionType,!
+        set pdef.Collection = collectionType
+        set pdef.Type = $extract(line,$find(ll," of "),*-1)
+        write "pdef.Type=",pdef.Type,!
+    } else {
+	    set pdef.Type=$piece($piece(line," ",4),";",1)
+    }
 	do ..parseParams(line,.p)
 	do ..setParams(pdef,.p)
 	//return pdef
@@ -735,13 +749,15 @@ The name of the aritfact in Cache is determined by the thing itself
 <ClassMethod>1</ClassMethod>
 <FormalSpec>i,*idx</FormalSpec>
 <Implementation><![CDATA[
+    // Index NewIndex1 On Name [ Type = bitmap ];
 	set line=^||lines(i)
+    set line=$zstrip(line,"<>W")
 	set idx=##class(%Dictionary.IndexDefinition).%New()
 	set idx.Name=$piece(line," ",2)
-	set idx.Type=$piece(line," ",4)
+	set idx.Properties=$piece(line," ",4)
 	do ..parseParams(line,.p)
 	do ..setParams(idx,.p)
-	//return idx
+	return idx
 ]]></Implementation>
 </Method>
 
@@ -784,7 +800,7 @@ The name of the aritfact in Cache is determined by the thing itself
 <Implementation><![CDATA[
 	set line=^||lines(i)
 	set line=$piece(line,"{",1)
-    set line=$zstrip(line,">W")
+    set line=$zstrip(line,"<>W")
      
 	set method=##class(%Dictionary.MethodDefinition).%New()
 	set m1=$piece(line,")",1)
@@ -800,20 +816,16 @@ The name of the aritfact in Cache is determined by the thing itself
     	for l2="as","As","aS","AS" {
 	    	set l1=$replace(l1," "_l2_" "," as ")
     	}
-    	write "l1=",l1,!
+    	//write "l1=",l1,!
     	set returnType=$piece($piece(l1," as ",2)," ",1)
-    	write "returnType=",returnType,!
+    	//write "returnType=",returnType,!
     	//set returnType=$piece(line," ",$length(line," "))
     }
-    set method.FormalSpec=formalSpec
     set method.ReturnType=returnType
  	do ..parseParams(line,.p)
 	do ..setParams(method,.p)
     // read in implementation
-    set done=0
-    if (line [ "{" ) { // start brace is on first line
-        set done=1
-    }
+    set done=1
     while ( done'=0 ) {
     	set i=i+1
     	set cl=^||lines(i)
@@ -1059,6 +1071,25 @@ action="$1"
 connection="$2"
 namespace="$3"
 file="$4"
+# if there is a .cim and connection looks like a file
+# then we can pull connection from .cim
+if [ -f ./.cim ]; then
+    if [ $# = 2 ]; then
+        if [ "$action" = "push" ]; then
+            if [ ! -f $2 ]; then 
+                echo "Bad args"
+                exit
+            fi
+        fi
+        file="$2"
+        connection=`head -1 ./.cim`
+        namespace=`head -2 ./.cim | tail -1`
+        #echo ">file=$file"
+        #echo ">connection=$connection"
+        #echo ">namespace=$namespace"
+    fi
+fi
+
 #echo "file=$file"
 if [ $action = 'help' ]; then
     usage
@@ -1072,6 +1103,13 @@ if [ $action = 'bootstrap' ]; then
     password=${credentials#*:}
     #echo "credentials=$credentials username=$username password=$password"
     bootstrap $username $password $namespace $instance $cache_home
+    cim="./.cim"
+    rm -f ./.cim
+    echo "$connection" >> ./.cim
+    echo "$namespace" >> ./.cim
+    echo "$instance" >> ./.cim
+    echo "$cache_home" >> ./.cim
+    echo "Saved setup to $cim"
     exit
 fi
 if [ $action = 'pull' ]; then

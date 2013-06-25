@@ -18,7 +18,7 @@ set cpo&vim
 " syn keyword csType			bool byte char decimal double float int long object sbyte short string uint ulong ushort void
 syn keyword csType		%Integer %String %Float  	
 " storage
-syn keyword csStorage		class Class Property property Parameter parameter Method method ClassMethod classmethod Query query XData xdata Storage storage as As #dim #include
+syn keyword csStorage		class Class Property property Parameter parameter Method method ClassMethod classmethod Query query XData xdata Storage storage as As #dim #include index Index
 " repeat / condition / label
 syn keyword csRepeat		b break continue do d f for foreach g goto return while q quit set s w write 
 syn keyword csConditional	: else if switch

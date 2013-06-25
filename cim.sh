@@ -396,29 +396,65 @@ The name of the aritfact in Cache is determined by the thing itself
 ]]></Implementation>
 </Method>
 
+<Method name="classNameLookup">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pattern,*classes</FormalSpec>
+<Implementation><![CDATA[
+    if ( $piece(pattern,".",$length(pattern,".")) = "cls" ) {
+        set pattern=$piece(pattern,".",1,$length(pattern,".")-1)
+    }
+    set classes=""
+    set stmt=##class(%SQL.Statement).%New()
+    do stmt.%Prepare("select Name from %Dictionary.ClassDefinition where Name LIKE ?")
+    set p=$replace(pattern,"*","%")
+    set result=stmt.%Execute( p )
+    //do result.%Display()
+    while ( result.%Next() ) {
+        set cn = result.%Get("Name")
+        set classes=classes_$listbuild(cn_".cls")
+    }
+]]></Implementation>
+</Method>
+
+<Method name="outputClassNames">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>classes</FormalSpec>
+<Implementation><![CDATA[
+    for i=1:1:$listlength(classes) {
+        write "class ",$listget(classes,i),$C(13,10)
+    }
+    write "__________",$C(13,10)
+]]></Implementation>
+</Method>
+
 <Method name="get">
 <ClassMethod>1</ClassMethod>
 <Implementation><![CDATA[
 	
 	set artifactName=$order(%request.Data(""))
-	//write " { "
-	//write ..jp("name",artifactName)_", "
+
 	set ext=$piece(artifactName,".",$length(artifactName,"."))
-	//write ..jp("ext",ext)_", "
 	if ( ""=artifactName ) {
 		do ..usage()
 		return
 	}
-	if ( ext="cls" ) {
+    if ( artifactName["*" ) {   // got a wildcard - only works with classes
+        if ( ext'="cls" ) { do ..usage() return }
+        do ..classNameLookup(artifactName,.artifacts) 
+        do ..outputClassNames(.artifacts)
+        return
+    }   
+	
+    if ( ext="cls" ) {
 		do ..getClass(artifactName)
 	} elseif ( ext="mac"  ) {
-		do ..getRoutine(artifactName)
+	    do ..getRoutine(artifactName)
 	} elseif ( ext="int"  ) {
 		do ..getRoutine(artifactName)
 	} elseif ( ext="inc" ) {
-		do ..getRoutine(artifactName)
+	    do ..getRoutine(artifactName)
 	} else {
-		write ..jp("error","Unknown extension")
+	    write ..jp("error","Unknown extension")
 	}
 	//write " }"
 	//write !
@@ -494,8 +530,8 @@ The name of the aritfact in Cache is determined by the thing itself
 	set source.LineTerminator=$C(10)
 	while ( 'source.AtEnd ) {
 		set line=source.ReadLine()
-		set ^||lines($i(^||lines))=line
-	}
+        set ^||lines($i(^||lines))=line   
+    }
 	
 	// possible word tokens
 	set commentTokens=$lb("//","/*","///")
@@ -505,11 +541,11 @@ The name of the aritfact in Cache is determined by the thing itself
 	k ^||order
 	for i=1:1:^||lines {
 		// the first word of a line will tell us the type
-		set line=^||lines(i)
-		set firstWord = $zconvert($zconvert($piece(line," ",1),"L"),"S")		// lower then Sententce case
+        set line=$zstrip(^||lines(i),"<>W")
+		set firstWord = $zconvert($zconvert($piece(line," ",1),"L"),"S")		// lower then Sentence case
 		set:firstWord="Classmethod" firstWord="ClassMethod"
 		set:firstWord="Xdata" firstWord="XData"
-        write ">>>>>>firstWord=",firstWord
+        //write ">>>>>>firstWord=",firstWord
 		
 		if ( $listfind(tokens,firstWord) = 0 ) {
 			continue		// throw exception here???
@@ -532,7 +568,7 @@ The name of the aritfact in Cache is determined by the thing itself
 				if ( type="ClassMethods" ) set type="Methods"
 				if ( type="Querys" ) set type="Queries"
 				set thing.SequenceNumber=$i(sequenceNumber)
-				write "------>",type,!
+				//write "------>",type,!
 				set collection=$property(classDef,type)
 				do $method(collection,"Insert",thing)	
 			}
@@ -563,7 +599,7 @@ The name of the aritfact in Cache is determined by the thing itself
 	
 	set sc=classDef.%Save()
     if ($$$ISERR(sc) ) { do $system.OBJ.DisplayError(sc) }
-    do $system.OBJ.Compile(classDef.Name,"-d")
+    do $system.OBJ.Compile(classDef.Name,"k") //,"-d")
 ]]></Implementation>
 </Method>
 
@@ -685,8 +721,7 @@ The name of the aritfact in Cache is determined by the thing itself
 <ClassMethod>1</ClassMethod>
 <FormalSpec>i,*pdef</FormalSpec>
 <Implementation><![CDATA[
-	set line=^||lines(i)
-	w line,!
+    set line=$zstrip(^||lines(i),"<>W")
 	set pdef=##class(%Dictionary.PropertyDefinition).%New()
 	set pdef.Name=$piece(line," ",2)
 	set pdef.Type=$piece($piece(line," ",4),";",1)
@@ -775,7 +810,10 @@ The name of the aritfact in Cache is determined by the thing itself
  	do ..parseParams(line,.p)
 	do ..setParams(method,.p)
     // read in implementation
-    set done=1
+    set done=0
+    if (line [ "{" ) { // start brace is on first line
+        set done=1
+    }
     while ( done'=0 ) {
     	set i=i+1
     	set cl=^||lines(i)
@@ -980,26 +1018,31 @@ usage()
 cat << 'End-Of-Usage'
 cim - Caché artifact loader. Now you can use any old text editor with Caché.
 
-Usage: cim [help|get|put|bootstrap] <user>:<password>@<server>:<port> <namespace> args
+Usage: cim [help|pull|push|bootstrap] <user>:<password>@<server>:<port> <namespace> args
 
     help        - Displays this usage help
-    get         - Gets code artifacts from Caché, like classes or routines
-    put         - Loads code into Caché
+    pull         - Gets code artifacts from Caché, like classes or routines
+    push        - Loads code into Caché
     bootstrap   - Loads a class into Caché to enable get & put
 
 Examples:
     To pull down the Sample.Person class from a default installation:
 
-    cim get _system:SYS@localhost:57774 samples Sample.Person.cls
+    cim pull _system:SYS@localhost:57774 samples Sample.Person.cls
     
     this would save the class as a file called 'Sample.Person.cls' in the 
     current directory.
 
     You can then edit the class and load it back into Caché with:
 
-    cim put _system:SYS@localhost:57774 samples ./Sample.Person.cls
+    cim push _system:SYS@localhost:57774 samples ./Sample.Person.cls
 
     Use output redirection to save artifacts to different locations.
+    Wildcards are supported, the following pull's all the classes in the "User" package
+    and saves them to the 'src' folder in the current directory.
+
+    cim pull _system:SYS@localhost:57774 samples User.*.cls src
+
     The 'bootstrap' action requires additional arguments. For example,
 
     cim bootstrap _system:SYS@localhost:57774 samples MYCACHE /var/isc/mycache
@@ -1011,11 +1054,12 @@ Examples:
 End-Of-Usage
 }
 
+set -f
 action="$1"
 connection="$2"
 namespace="$3"
 file="$4"
-echo "file=$file"
+#echo "file=$file"
 if [ $action = 'help' ]; then
     usage
     exit
@@ -1030,12 +1074,25 @@ if [ $action = 'bootstrap' ]; then
     bootstrap $username $password $namespace $instance $cache_home
     exit
 fi
-if [ $action = 'get' ]; then
+if [ $action = 'pull' ]; then
+  if [[ $file == *"*"* ]]; then
+    #echo "--------->",$file;
+    output_dir="$5"
+    mkdir -p "$output_dir"
+    #curl -sX GET http://$connection/csp/$namespace/cim.cim.cls?$file
+    files=$(curl -sX GET http://$connection/csp/$namespace/cim.cim.cls?$file | awk '/^class/{print $2}' | tr '\r' ' ')
+    #echo "files=$files"
+    for f in $files
+    do
+        curl -sX GET http://$connection/csp/$namespace/cim.cim.cls?$f > $output_dir/$f
+    done
+    exit
+  fi
   curl -X GET http://$connection/csp/$namespace/cim.cim.cls?$file
   exit
 fi
-if [ $action = 'put' ]; then
- curl -v -X POST --data-binary @$file http://$connection/csp/$namespace/cim.cim.cls --header "Content-Type:application/x-cache-cls; charset=utf-8"
+if [ $action = 'push' ]; then
+ curl -X POST --data-binary @$file http://$connection/csp/$namespace/cim.cim.cls --header "Content-Type:application/x-cache-cls; charset=utf-8"
 
 fi
 

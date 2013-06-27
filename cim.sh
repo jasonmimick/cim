@@ -737,7 +737,23 @@ The name of the aritfact in Cache is determined by the thing itself
         set pdef.Type = $extract(line,$find(ll," of "),*-1)
         write "pdef.Type=",pdef.Type,!
     } else {
-	    set pdef.Type=$piece($piece(line," ",4),";",1)
+        set ptype=$piece($piece(line," ",4),";",1)
+        if ( ptype["(" ) {  // has parameters
+            set ptype=$extract(line,$find(ll," as "),$find(line,")"))
+        }
+        write "ptype=",ptype,!
+        set ptypet=$piece(ptype,"(",1)
+        set ptparms=$piece($piece(ptype,"(",2),")",1)
+	    set pdef.Type=ptypet
+        set params=$listfromstring(ptparms,",")
+        zw params
+        for j=1:1:$listlength(params) {
+            set pnv=$listget(params,j)
+            set n=$zstrip($piece(pnv,"=",1),"<>W")
+            set v=$zstrip($piece(pnv,"=",2),"<>W")
+            write "n=",n," v=",v,!
+            do pdef.Parameters.SetAt(v,n)
+        }
     }
 	do ..parseParams(line,.p)
 	do ..setParams(pdef,.p)
@@ -1063,6 +1079,20 @@ Examples:
     instance installed in '/var/isc/mycache'. The bootstrap mechanism falls back 
     to the standard $system.OBJ.Load() xml file process and thus needs to know 
     where to find things like 'csession'.
+
+    Running the bootstrap command will create a .cim file in the current
+    directory, this stores the connection information and credentials so that
+    you can instead just do shortcuts like:
+
+    cim push src/foo.bar.*.cls
+    or
+    cim pull User.*.cls > src
+
+    TODO - some 'diff' feature would be nice. For example, 
+    cim diff src/myapp.person.cls
+    could connect up to Caché, pull down myapp.person.cls to some temp file
+    and then run a diff between it and what you have in your filesystem.
+
 End-Of-Usage
 }
 
@@ -1073,8 +1103,24 @@ namespace="$3"
 file="$4"
 # if there is a .cim and connection looks like a file
 # then we can pull connection from .cim
+# also - if we got a wildcard on a push, then loop over those
+# files and call ourself back with just one file at a time
 if [ -f ./.cim ]; then
-    if [ $# = 2 ]; then
+    echo "Number of args=$#,$1,$2,$3"
+    if [ $# -gt 2 ]; then
+        if [ "$action" = "push" ]; then
+            for fi in "$@"
+            do
+                if [ -f $fi ]; then
+                    #echo "Recursive call to myself for:$fi"
+                    #echo "./$0 push $fi"
+                    ./$0 push $fi
+                fi
+            done
+            exit
+        fi
+    fi
+    #if [ $# = 2 ]; then
         if [ "$action" = "push" ]; then
             if [ ! -f $2 ]; then 
                 echo "Bad args"
@@ -1087,7 +1133,7 @@ if [ -f ./.cim ]; then
         #echo ">file=$file"
         #echo ">connection=$connection"
         #echo ">namespace=$namespace"
-    fi
+    #fi
 fi
 
 #echo "file=$file"
@@ -1114,14 +1160,19 @@ if [ $action = 'bootstrap' ]; then
 fi
 if [ $action = 'pull' ]; then
   if [[ $file == *"*"* ]]; then
-    #echo "--------->",$file;
-    output_dir="$5"
-    mkdir -p "$output_dir"
+    echo "--------->",$file;
+    output_dir="."
+    if [ $# = 3 ]; then
+        output_dir="${*: -1}"
+        mkdir -p "$output_dir"
+    fi
+    echo "output_dir=$output_dir"
     #curl -sX GET http://$connection/csp/$namespace/cim.cim.cls?$file
     files=$(curl -sX GET http://$connection/csp/$namespace/cim.cim.cls?$file | awk '/^class/{print $2}' | tr '\r' ' ')
-    #echo "files=$files"
+    echo "files=$files"
     for f in $files
     do
+        rm $output_dir/$f
         curl -sX GET http://$connection/csp/$namespace/cim.cim.cls?$f > $output_dir/$f
     done
     exit

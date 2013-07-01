@@ -480,7 +480,7 @@ The name of the aritfact in Cache is determined by the thing itself
 	//set name=$piece(name,".",1,$length(name,".")-1)
 	if ( %request.ContentType="application/x-cache-cls" ) {
 		do ..postClassX()
-	} elseif ( %request.ContentType="application/c-cache-mac" ) {
+	} elseif ( %request.ContentType="application/x-cache-mac" ) {
 		do ..postMac(artifactName) 
 	}
 ]]></Implementation>
@@ -488,14 +488,18 @@ The name of the aritfact in Cache is determined by the thing itself
 
 <Method name="postMac">
 <ClassMethod>1</ClassMethod>
+<FormalSpec>routineName</FormalSpec>
 <Implementation><![CDATA[
-	
 	Set source=%request.Content
+	set source.LineTerminator=$C(10)
 	Set rm=##class(%RoutineMgr).%New(routineName)
 	while ( 'source.AtEnd ) {
-		do rm.WriteLine(source.ReadLine)
+        set line=source.ReadLine()
+        //write "line=",line,!
+        do rm.Code.WriteLine(line)
 	}
 	do rm.%Save()
+    do rm.Compile("k")
 ]]></Implementation>
 </Method>
 
@@ -530,7 +534,7 @@ The name of the aritfact in Cache is determined by the thing itself
 	set source.LineTerminator=$C(10)
 	while ( 'source.AtEnd ) {
 		set line=source.ReadLine()
-        set ^||lines($i(^||lines))=line   
+        set ^||lines($i(^||lines))=$zstrip(line,">C")   
     }
 	
 	// possible word tokens
@@ -658,7 +662,6 @@ The name of the aritfact in Cache is determined by the thing itself
 		}
 		set cdef.Description=desc
 	}
-	//return cdef
 ]]></Implementation>
 </Method>
 
@@ -842,16 +845,29 @@ The name of the aritfact in Cache is determined by the thing itself
 	do ..setParams(method,.p)
     // read in implementation
     set done=1
+    set lll=$zstrip(line,">W")
+    if ( $extract(lll,*)'="{" ) {
+        set done="X"
+    }
     while ( done'=0 ) {
+        set:done="X" done=0   
     	set i=i+1
     	set cl=^||lines(i)
-        if ( cl["{" ) { set done=done+1 }
-        if ( cl["}" ) { set done=done-1 }
+        set commented=0
+        if ( $extract($zstrip(cl,"<W"),1,2)="//" ) {
+            set commented=1
+        }
+        if ( 'commented ) {
+            if ( cl["{" ) { set done=done+1 }
+            if ( cl["}" ) { set done=done-1 }
+        }
+        if ( ($zstrip(cl,"<>CW")="{") && (done=1)) continue
+        if ( ($zstrip(cl,"<>CW")="}") && (done=0)) continue
+
         if ( done'=0 ) {
-			do method.Implementation.WriteLine(cl)
+            do method.Implementation.WriteLine($zstrip(cl,">C"))
         }
     }
-    //return method
 ]]></Implementation>
 </Method>
 
@@ -1106,7 +1122,7 @@ file="$4"
 # also - if we got a wildcard on a push, then loop over those
 # files and call ourself back with just one file at a time
 if [ -f ./.cim ]; then
-    echo "Number of args=$#,$1,$2,$3"
+    #echo "Number of args=$#,$1,$2,$3"
     if [ $# -gt 2 ]; then
         if [ "$action" = "push" ]; then
             for fi in "$@"
@@ -1181,7 +1197,10 @@ if [ $action = 'pull' ]; then
   exit
 fi
 if [ $action = 'push' ]; then
- curl -X POST --data-binary @$file http://$connection/csp/$namespace/cim.cim.cls --header "Content-Type:application/x-cache-cls; charset=utf-8"
+ ext="${file##*.}"
+ #echo "ext=$ext"
+ f=$(basename "$file")
+ curl -X POST --data-binary @$file http://$connection/csp/$namespace/cim.cim.cls?$f --header "Content-Type:application/x-cache-$ext; charset=utf-8"
 
 fi
 

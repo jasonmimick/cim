@@ -306,7 +306,8 @@ The name of the aritfact in Cache is determined by the thing itself
 	} else {
 		set d="Method "
 	}
-	set d=d_mdef.Name_"("_mdef.FormalSpec_") "
+	set fso=..translateFormalSpecOut(mdef.FormalSpec)
+	set d=d_mdef.Name_"("_fso_") "
 	if ( mdef.ReturnType'="" ) {
 		set d=d_"As "_mdef.ReturnType
 	}
@@ -1028,6 +1029,21 @@ The name of the aritfact in Cache is determined by the thing itself
     for as=" as "," As "," aS "," AS " {
         set out=$replace(out,as,":")
     }
+    return out
+]]></Implementation>
+</Method>
+
+<Method name="translateFormalSpecOut">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>in</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    // Name:%String,Age:%Integer
+    // to Name As %String, Age As %Integer
+    set out=in
+    set out=$replace(out,"*","Output ")
+    set out=$replace(out,"&","ByRef ")
+    set out=$replace(out,":"," as ")
     return out
 ]]></Implementation>
 </Method>
